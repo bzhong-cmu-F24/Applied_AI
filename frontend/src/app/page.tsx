@@ -22,6 +22,7 @@ interface Prefs {
   mode: "safe" | "adventurous";
   maxDrive: number;
   blacklist: string;
+  openNow: boolean;
 }
 
 const DEFAULT_PREFS: Prefs = {
@@ -31,6 +32,7 @@ const DEFAULT_PREFS: Prefs = {
   mode: "safe",
   maxDrive: 30,
   blacklist: "",
+  openNow: true,
 };
 
 const OCCASIONS = ["Friends", "Birthday", "Date", "Formal"];
@@ -336,11 +338,17 @@ export default function Home() {
   const buildAgentMessage = useCallback(() => {
     const parts: string[] = [];
     if (selectedFriends.length > 0) parts.push(`I want to have dinner with ${selectedFriends.join(", ")}.`);
-    if (prefs.cuisines.length > 0) parts.push(`We want ${prefs.cuisines.join(" or ")} food.`);
+    if (prefs.cuisines.length > 0) {
+      parts.push(`We want ${prefs.cuisines.join(" or ")} food.`);
+    } else {
+      parts.push(`No cuisine preference — all cuisines are fine.`);
+    }
     parts.push(`Budget: $${prefs.budget} per person.`);
     parts.push(`Occasion: ${prefs.occasion}.`);
     parts.push(`Mode: ${prefs.mode === "safe" ? "safe picks (well-reviewed)" : "adventurous (hidden gems)"}.`);
     parts.push(`Max drive: ${prefs.maxDrive} minutes.`);
+    if (prefs.openNow) parts.push(`Only show restaurants that are currently open.`);
+    else parts.push(`Include restaurants regardless of whether they are currently open.`);
     if (prefs.blacklist.trim()) parts.push(`Avoid: ${prefs.blacklist}.`);
     return parts.join(" ");
   }, [selectedFriends, prefs]);
@@ -597,7 +605,10 @@ export default function Home() {
 
                     {/* Cuisines */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-2">Cuisines</label>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Cuisines</label>
+                      {prefs.cuisines.length === 0 && (
+                        <p className="text-[10px] text-gray-400 mb-1.5">No selection = all cuisines welcome</p>
+                      )}
                       <div className="flex flex-wrap gap-2">
                         {CUISINE_OPTIONS.map((c) => (
                           <button key={c} type="button" onClick={() => toggleCuisine(c)}
@@ -649,6 +660,20 @@ export default function Home() {
                         className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-500"
                       />
                       <div className="flex justify-between text-xs text-gray-500 mt-1"><span>10 min</span><span>60 min</span></div>
+                    </div>
+
+                    {/* Open Now */}
+                    <div>
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <span className="text-xs font-medium text-gray-700">Only show open restaurants</span>
+                        <button
+                          type="button"
+                          onClick={() => setPrefs({ ...prefs, openNow: !prefs.openNow })}
+                          className={`relative w-9 h-5 rounded-full transition-colors ${prefs.openNow ? "bg-teal-500" : "bg-gray-300"}`}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${prefs.openNow ? "translate-x-4" : ""}`} />
+                        </button>
+                      </label>
                     </div>
 
                     {/* Avoid */}

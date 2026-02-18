@@ -89,15 +89,16 @@ interface RestaurantMapData {
 }
 
 function extractRestaurants(steps: AgentStep[]): RestaurantMapData[] {
-  // Build a lookup of all restaurants with location data from search results
-  const allRestaurants: Map<string, RestaurantMapData> = new Map();
+  // Build lookups from search results by name and place_id
+  const byName: Map<string, RestaurantMapData> = new Map();
+  const byPlaceId: Map<string, RestaurantMapData> = new Map();
   for (const step of steps) {
     if (step.type === "tool_result") {
       const data = step.content as { tool: string; result: unknown };
       if (data.tool === "search_restaurants" && Array.isArray(data.result)) {
         for (const r of data.result) {
           if (r.location) {
-            allRestaurants.set(r.name, {
+            const entry: RestaurantMapData = {
               name: r.name,
               lat: r.location.lat,
               lng: r.location.lng,
@@ -105,29 +106,34 @@ function extractRestaurants(steps: AgentStep[]): RestaurantMapData[] {
               price_level: r.price_level,
               address: r.address,
               total_ratings: r.total_ratings,
-            });
+            };
+            byName.set(r.name, entry);
+            if (r.place_id) byPlaceId.set(r.place_id, entry);
           }
         }
       }
     }
   }
 
-  // If rank_and_score was called, only show the top ranked restaurants (up to 3)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  type RankedEntry = { name: string; place_id?: string; rating?: number; price_level?: number; address?: string; total_ratings?: number; location?: { lat: number; lng: number } };
+
   for (let i = steps.length - 1; i >= 0; i--) {
     const step = steps[i];
     if (step.type === "tool_result") {
       const data = step.content as { tool: string; result: unknown };
       if (data.tool === "rank_and_score" && Array.isArray(data.result)) {
-        const top = data.result.slice(0, 3) as { name: string; rating?: number; price_level?: number; address?: string; total_ratings?: number; location?: { lat: number; lng: number } }[];
+        const top = (data.result as RankedEntry[]).slice(0, 3);
         const mapped: RestaurantMapData[] = [];
         for (const r of top) {
-          // Try exact match first, then fuzzy match by checking if one name contains the other
-          const full = allRestaurants.get(r.name)
-            || [...allRestaurants.values()].find((a) => a.name.includes(r.name) || r.name.includes(a.name));
+          // Match by place_id first (most reliable), then exact name, then fuzzy name
+          const full = (r.place_id && byPlaceId.get(r.place_id))
+            || byName.get(r.name)
+            || [...byName.values()].find((a) => a.name.includes(r.name) || r.name.includes(a.name));
+
           if (full) {
             mapped.push({ ...full, rating: r.rating ?? full.rating, address: r.address ?? full.address });
           } else if (r.location) {
-            // Fallback: use location from rank_and_score result directly
             mapped.push({ name: r.name, lat: r.location.lat, lng: r.location.lng, rating: r.rating, price_level: r.price_level, address: r.address, total_ratings: r.total_ratings });
           }
         }
@@ -136,8 +142,7 @@ function extractRestaurants(steps: AgentStep[]): RestaurantMapData[] {
     }
   }
 
-  // Fallback: if no rank_and_score yet, show all search results
-  return Array.from(allRestaurants.values());
+  return Array.from(byName.values());
 }
 
 // ─── Extract drive times from tool results for the map ───

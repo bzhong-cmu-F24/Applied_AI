@@ -959,13 +959,22 @@ TOOL_DEFINITIONS = [
                             "type": "object",
                             "properties": {
                                 "name": {"type": "string"},
+                                "place_id": {"type": "string", "description": "Google Place ID — pass through from search results"},
                                 "rating": {"type": "number"},
                                 "total_ratings": {"type": "integer"},
                                 "price_level": {"type": "integer"},
                                 "address": {"type": "string"},
+                                "location": {
+                                    "type": "object",
+                                    "properties": {
+                                        "lat": {"type": "number"},
+                                        "lng": {"type": "number"},
+                                    },
+                                    "description": "Lat/lng — pass through from search results",
+                                },
                             },
                         },
-                        "description": "Validated restaurant candidates to score",
+                        "description": "Validated restaurant candidates to score. IMPORTANT: include place_id and location from the original search results.",
                     },
                     "drive_times": {
                         "type": "array",

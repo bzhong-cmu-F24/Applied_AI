@@ -49,9 +49,9 @@ Output a brief plan:
 - THEN OUTPUT ANALYSIS: Review each person's preferences. Identify overlapping likes, conflicting dislikes, allergies that matter. Note the geographic spread **including the user's own location** and what area would be fairest.
 
 ### Step 3: Search Restaurants
-- Calculate the geographic center of ALL people: the user ("Me") + all friends. The user's location is in the "User's Current Location" section above.
+- Calculate the geographic center of ALL people: the user ("Me") + all friends. The user's location is in the "User's Current Location" section above. Average all latitudes and all longitudes to get the center.
 - Explain your search strategy (center point, radius, query, why)
-- Call **search_restaurants**
+- Call **search_restaurants** with this center point and an appropriate radius (start with 5000-8000m)
 - THEN OUTPUT ANALYSIS: Review each candidate one by one:
   - Does it match the group's cuisine overlap?
   - Does the price level fit the budget?
@@ -68,22 +68,33 @@ Output a brief plan:
 ### Step 5: Validate & Filter
 - Call **validate_restaurants** with the group's combined allergies, dislikes, blacklist, and max drive time constraint
 - THEN OUTPUT ANALYSIS: Report which restaurants were removed and why. Count survivors.
-- If < 3 candidates survive, relax constraints in this exact order (one per retry, max 3 retries):
-  1. **Broaden search radius** — double the radius (e.g. 5000 → 10000 → 20000 meters) and call **search_restaurants** again with the same query but larger radius.
-  2. **Broaden cuisine** — remove or loosen the cuisine filter (e.g. search for "restaurant" instead of a specific cuisine) and call **search_restaurants** again.
-  3. **Broaden budget** — expand the price range by ±1 level (e.g. min_price 0, max_price +1) and call **search_restaurants** again.
-  - At each retry, EXPLICITLY STATE which constraint you are relaxing and why.
+
+**⚠️ CRITICAL: You MUST have at least 3 validated candidates before proceeding to Step 6 unless you have exhausted all relaxation retries. DO NOT call rank_and_score with fewer than 3 candidates.**
+
+If fewer than 3 candidates survived validation, first ANALYZE the drive time data to understand WHY restaurants were rejected:
+- Look at which specific person(s) had drive times exceeding the limit for the rejected restaurants.
+- If most people are well within the limit but 1-2 people are over, note who they are and where they are located.
+- This tells you which DIRECTION to shift the search center.
+
+Then retry by going back to Step 3 (search). Relax constraints in this exact order (one per retry, max 3 retries):
+  - **Retry 1 — Shift center toward the bottleneck person(s) + broaden radius**: Identify who exceeded the drive time limit most often. Shift the search center toward their location (e.g. average the current center with the bottleneck person's lat/lng). Also increase the radius (e.g. 5000 → 10000m). This finds restaurants that are closer to the person who kept failing. Call **search_restaurants** with this adjusted center. Then re-run **calculate_drive_times** and **validate_restaurants** for the NEW results. Merge survivors with any previous survivors.
+  - **Retry 2 — Broaden cuisine + shift center again**: Remove or loosen the cuisine filter (e.g. search for "restaurant" instead of a specific cuisine). If drive time is still the bottleneck, shift the center even further toward the bottleneck person, or try centering on a midpoint city/town between them and the rest of the group. Call **search_restaurants**, then **calculate_drive_times** and **validate_restaurants**. Merge survivors.
+  - **Retry 3 — Broaden budget**: Expand the price range by ±1 level. Call **search_restaurants**, then **calculate_drive_times** and **validate_restaurants**. Merge survivors.
+  - **IMPORTANT**: Each retry MUST use different search parameters (center, radius, or query) than the previous search. If you pass the exact same lat/lng and radius, you will get the exact same results.
+  - At each retry, EXPLICITLY STATE: "I only have N candidates but need at least 3. [Person X] exceeded the drive limit for most rejected restaurants. Shifting search center toward them: [new lat, lng] with radius [X]m."
+  - After each retry, check the TOTAL survivor count (old + new). If >= 3, proceed to Step 6. Otherwise, try the next relaxation.
+  - If still < 3 after all 3 retries, proceed with what you have — but NEVER stop at just 1 without trying.
 
 ### Step 6: Score & Rank
-- Call **rank_and_score** with the validated candidates, drive times, budget level, and preferred cuisines
+- Call **rank_and_score** with ALL validated candidates (from initial + any retries), drive times, budget level, and preferred cuisines
 - THEN OUTPUT ANALYSIS: Review the scoring breakdown. Highlight the top 3 and explain why they scored highest.
 
-### Step 7: Get Details for Top 3
-- Call **get_restaurant_details** with the place_ids of the top 3 ranked restaurants
+### Step 7: Get Details for Top 3 (MANDATORY — DO NOT SKIP)
+- You MUST call **get_restaurant_details** with the place_ids of the top 3 ranked restaurants. This is NOT optional — the frontend relies on this data to show phone numbers, websites, hours, and reviews in the recommendation cards.
 - THEN OUTPUT ANALYSIS: Incorporate reviews, hours, and other details into your final assessment.
 
-### Step 7b: Get Yelp Data for Top 3
-- Call **get_yelp_info** with the top 3 restaurants (name, latitude, longitude)
+### Step 7b: Get Yelp Data for Top 3 (MANDATORY — DO NOT SKIP)
+- You MUST call **get_yelp_info** with the top 3 restaurants (name, latitude, longitude). This is NOT optional — the frontend relies on this data to show Yelp ratings, popular dishes, and estimated costs in the recommendation cards.
 - THEN OUTPUT ANALYSIS: Compare Yelp vs Google ratings. Note popular dishes found in Yelp reviews. Report menu items with prices if available, and the estimated per-person dinner cost.
 
 ### Step 8: Present Top 3
@@ -100,6 +111,7 @@ For each recommendation:
 
 ## Important Rules
 - **ALWAYS include the user ("Me") in drive time calculations and search center.** The user is dining too! Use their location from the "User's Current Location" section. If the user's location is "Not available", ask them for it.
+- **ALWAYS call get_restaurant_details AND get_yelp_info for your top 3 before presenting final recommendations.** Never skip these — the frontend needs phone, website, hours, Yelp ratings, and popular dishes to render complete recommendation cards. If you skip them, the cards will appear broken/empty.
 - ALWAYS output reasoning text before AND after each tool call. This is mandatory.
 - Only call calculate_drive_times for your shortlisted candidates (5-6 max), not every single result.
 - If the user is vague about a field, pick a sensible default and state it.
@@ -177,7 +189,7 @@ async def run_agent(
 
     messages = session.messages
 
-    max_iterations = 15
+    max_iterations = 25
     for _ in range(max_iterations):
         # ── Stream from OpenAI ──
         stream = await client.chat.completions.create(

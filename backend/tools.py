@@ -67,12 +67,6 @@ async def search_restaurants(
     open_now: bool = True,
 ) -> list[dict]:
     """Search restaurants via Google Places Text Search API."""
-    # Auto-blend user location into center so results aren't biased toward friends only
-    if _user_location and _user_location.get("lat"):
-        latitude = (latitude + _user_location["lat"]) / 2
-        longitude = (longitude + _user_location["lng"]) / 2
-        # Increase radius to cover the wider area
-        radius = max(radius, 8000)
 
     url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
     params: dict = {

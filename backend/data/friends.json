@@ -71,6 +71,15 @@
         "dislikes": [],
         "allergies": ["Dairy"]
       }
+    },
+    {
+      "name": "Leo",
+      "location": { "lat": 34.0522, "lng": -118.2437, "address": "Los Angeles (Downtown)" },
+      "preferences": {
+        "likes": ["Tacos", "Korean BBQ", "Ramen"],
+        "dislikes": [],
+        "allergies": []
+      }
     }
   ]
 }

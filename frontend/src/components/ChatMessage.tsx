@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeSanitize from "rehype-sanitize";
 
 export type MessageRole = "user" | "assistant" | "status";
 
@@ -28,6 +31,105 @@ const TOOL_LABELS: Record<string, { icon: string; label: string }> = {
 
 function formatTime(d: Date) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function Markdown({ text, className }: { text: string; className?: string }) {
+  return (
+    <div className={className}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeSanitize]}
+        components={{
+          a: ({ href, children, ...props }) => {
+            const url = href || "";
+            // Uber ride links → branded black button
+            if (/^https?:\/\/m\.uber\.com/i.test(url)) {
+              return (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 mt-1 mb-1 px-3 py-1.5 bg-black hover:bg-gray-800 text-white rounded-full text-xs font-medium no-underline transition-colors"
+                  {...props}
+                >
+                  🚗 {children}
+                </a>
+              );
+            }
+            // Google Calendar links → green button
+            if (/^https?:\/\/calendar\.google\.com/i.test(url)) {
+              return (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 mt-1 mb-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full text-xs font-medium no-underline transition-colors"
+                  {...props}
+                >
+                  📅 {children}
+                </a>
+              );
+            }
+            // tel: links → call button
+            if (/^tel:/i.test(url)) {
+              return (
+                <a
+                  href={url}
+                  className="inline-flex items-center gap-1 mt-1 mb-1 px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-full text-xs font-medium no-underline border border-teal-200 transition-colors"
+                  {...props}
+                >
+                  📞 {children}
+                </a>
+              );
+            }
+            return (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-teal-700 hover:underline"
+                {...props}
+              >
+                {children}
+              </a>
+            );
+          },
+          p: ({ children, ...props }) => (
+            <p className="chat-md-p" {...props}>
+              {children}
+            </p>
+          ),
+          ul: ({ children, ...props }) => (
+            <ul className="chat-md-ul" {...props}>
+              {children}
+            </ul>
+          ),
+          ol: ({ children, ...props }) => (
+            <ol className="chat-md-ol" {...props}>
+              {children}
+            </ol>
+          ),
+          li: ({ children, ...props }) => (
+            <li className="chat-md-li" {...props}>
+              {children}
+            </li>
+          ),
+          code: ({ children, ...props }) => (
+            <code className="chat-md-code" {...props}>
+              {children}
+            </code>
+          ),
+          pre: ({ children, ...props }) => (
+            <pre className="chat-md-pre" {...props}>
+              {children}
+            </pre>
+          ),
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
 }
 
 // ── Scramble hook for fake GPS coords ──
@@ -269,8 +371,8 @@ export default function ChatMessage({ msg }: { msg: ChatMsg }) {
           <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-blue-600 rounded-lg flex items-center justify-center shrink-0">
             <span className="text-white text-sm">💭</span>
           </div>
-          <div className="bg-gray-100 rounded-2xl px-4 py-2.5 text-xs text-gray-500 italic max-w-[75%]">
-            {msg.content}
+          <div className="bg-gray-100 rounded-2xl px-4 py-2.5 text-xs text-gray-700 max-w-[75%]">
+            <Markdown text={msg.content} className="chat-markdown" />
           </div>
         </div>
       );
@@ -297,45 +399,10 @@ export default function ChatMessage({ msg }: { msg: ChatMsg }) {
       </div>
       <div className="max-w-[80%]">
         <div className="bg-gray-100 rounded-2xl rounded-tl-md px-4 py-3">
-          <div className="text-sm whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.content) }} />
+          <Markdown text={msg.content} className="chat-markdown text-sm leading-relaxed" />
         </div>
         <span className="text-[10px] text-gray-400 mt-1 ml-1 block">{formatTime(msg.timestamp)}</span>
       </div>
     </div>
   );
-}
-
-function formatMarkdown(text: string): string {
-  let result = text
-    // Uber ride links → branded black button
-    .replace(/\[([^\]]+)\]\((https?:\/\/m\.uber\.com[^)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 mt-1 mb-1 px-3 py-1.5 bg-black hover:bg-gray-800 text-white rounded-full text-xs font-medium no-underline transition-colors">🚗 $1</a>')
-    // Google Calendar links → green button
-    .replace(/\[([^\]]+)\]\((https?:\/\/calendar\.google\.com[^)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 mt-1 mb-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full text-xs font-medium no-underline transition-colors">📅 $1</a>')
-    // Other markdown links [text](url) to HTML links
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-teal-600 hover:underline">$1</a>')
-    // Convert markdown links [text](tel:...) to call buttons
-    .replace(/\[([^\]]+)\]\((tel:[^)]+)\)/g,
-      '<a href="$2" class="inline-flex items-center gap-1 mt-1 mb-1 px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-full text-xs font-medium no-underline border border-teal-200 transition-colors">📞 $1</a>')
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\n/g, "<br/>")
-    .replace(/^(\d+)\.\s/gm, "<span class='font-semibold text-teal-700'>$1.</span> ")
-    .replace(/- \*\*/g, "• <strong>")
-    .replace(/^- /gm, "• ");
-
-  // Phone numbers → clickable "Call to Reserve" buttons (only if not already inside an <a> tag)
-  result = result.replace(
-    /(?<!["=])(?:📞\s*)?(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})(?![^<]*<\/a>)/g,
-    '<a href="tel:$1" class="inline-flex items-center gap-1 mt-1 mb-1 px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-full text-xs font-medium no-underline border border-teal-200 transition-colors">📞 Call to Reserve: $1</a>'
-  );
-
-  // Bare URLs not already in <a> tags → clickable links
-  result = result.replace(
-    /(?<!["=])(https?:\/\/[^\s<)"]+)(?![^<]*<\/a>)/g,
-    '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-teal-600 hover:underline text-xs">🔗 $1</a>'
-  );
-
-  return result;
 }

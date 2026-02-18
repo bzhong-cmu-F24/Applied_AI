@@ -265,6 +265,20 @@ async def rank_and_score(
         drive_stats[rname]["max"] = max(drive_stats[rname]["max"], secs)
         drive_stats[rname]["min"] = min(drive_stats[rname]["min"], secs)
 
+    # Pre-compute drive-time spreads for relative fairness normalization
+    spreads: dict[str, float] = {}
+    for r in candidates:
+        name = r.get("name", "")
+        stats = drive_stats.get(name, {"times": [], "max": 0, "min": 99999})
+        if stats["times"]:
+            spreads[name] = stats["max"] - stats["min"]
+        else:
+            spreads[name] = 0
+
+    all_spreads = list(spreads.values())
+    min_spread = min(all_spreads) if all_spreads else 0
+    max_spread = max(all_spreads) if all_spreads else 0
+
     scored = []
     for r in candidates:
         name = r.get("name", "")
@@ -273,7 +287,6 @@ async def rank_and_score(
         rating = r.get("rating", 0) or 0
         total_ratings = r.get("total_ratings", 0) or 0
         rating_score = (rating / max_rating) * 10
-        # Bonus for high review count (popular = trustworthy)
         if total_ratings >= 500:
             rating_score = min(10, rating_score * 1.1)
         elif total_ratings >= 200:
@@ -285,17 +298,19 @@ async def rank_and_score(
         stats = drive_stats.get(name, {"times": [], "max": 0, "min": 0})
         if stats["times"]:
             avg_time = sum(stats["times"]) / len(stats["times"])
-            # 0-10min avg → 10, 20min → 7, 30min → 4, 40min+ → ~1
-            drive_score = max(0, 10 - (avg_time / 240))  # 2400s=40min → 0
+            drive_score = max(0, 10 - (avg_time / 240))
         else:
             drive_score = 5.0
 
-        # Fairness score (20%) — lower spread between friends = higher
-        if stats["times"]:
-            spread = stats["max"] - stats["min"]
-            fairness_score = max(0, 10 - (spread / 180))  # 1800s=30min spread → 0
+        # Fairness score (20%) — normalized across candidates so the most
+        # balanced restaurant scores highest and there's always differentiation.
+        # Range: [2, 9] — never 0, never a perfect 10.
+        spread = spreads.get(name, 0)
+        if max_spread == min_spread:
+            fairness_score = 7.0
         else:
-            fairness_score = 5.0
+            t = (spread - min_spread) / (max_spread - min_spread)
+            fairness_score = 9.0 - t * 7.0  # best spread → 9, worst → 2
 
         # Price fit score (15%) — closer to budget_level = higher
         price = r.get("price_level")

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Friend, AgentStep, fetchFriends, streamPlan } from "@/lib/api";
-import ChatMessage, { ChatMsg } from "@/components/ChatMessage";
+import ChatMessage, { ChatMsg, RecommendationData } from "@/components/ChatMessage";
 import MapPanel, { UserLocation } from "@/components/MapPanel";
 import { ScanState } from "@/components/FriendLocatorOverlay";
 
@@ -156,6 +156,88 @@ function extractDriveTimes(steps: AgentStep[]): Record<string, Record<string, st
     }
   }
   return result;
+}
+
+// ─── Extract structured recommendation data from tool results ───
+function extractRecommendations(steps: AgentStep[]): RecommendationData[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  type AnyObj = Record<string, any>;
+
+  let ranked: AnyObj[] = [];
+  let details: AnyObj[] = [];
+  let yelpData: AnyObj[] = [];
+  const driveEntries: AnyObj[] = [];
+
+  for (const step of steps) {
+    if (step.type !== "tool_result") continue;
+    const data = step.content as { tool: string; result: unknown };
+    if (data.tool === "rank_and_score" && Array.isArray(data.result)) {
+      ranked = data.result as AnyObj[];
+    }
+    if (data.tool === "get_restaurant_details" && Array.isArray(data.result)) {
+      details = data.result as AnyObj[];
+    }
+    if (data.tool === "get_yelp_info" && Array.isArray(data.result)) {
+      yelpData = data.result as AnyObj[];
+    }
+    if (data.tool === "calculate_drive_times" && Array.isArray(data.result)) {
+      for (const e of data.result as AnyObj[]) driveEntries.push(e);
+    }
+  }
+
+  if (ranked.length === 0) return [];
+
+  const top = ranked.slice(0, 3);
+
+  const detailsByPlaceId = new Map<string, AnyObj>();
+  const detailsByName = new Map<string, AnyObj>();
+  for (const d of details) {
+    if (d.place_id) detailsByPlaceId.set(d.place_id, d);
+    if (d.name) detailsByName.set(d.name.toLowerCase(), d);
+  }
+
+  const yelpByName = new Map<string, AnyObj>();
+  for (const y of yelpData) {
+    if (y.name) yelpByName.set(y.name.toLowerCase(), y);
+  }
+
+  return top.map((r, i): RecommendationData => {
+    const detail = detailsByPlaceId.get(r.place_id)
+      || detailsByName.get(r.name?.toLowerCase())
+      || {};
+    const yelp = yelpByName.get(r.name?.toLowerCase()) || {};
+
+    const perRestDrives = driveEntries
+      .filter((d) => d.restaurant === r.name)
+      .map((d) => ({ friend: d.friend as string, duration: d.duration_text as string }));
+
+    return {
+      rank: i + 1,
+      name: r.name || "",
+      address: r.address || "",
+      rating: r.rating || 0,
+      totalRatings: r.total_ratings || 0,
+      priceLevel: r.price_level ?? null,
+      totalScore: r.total_score || 0,
+      breakdown: r.breakdown || { drive_score: 0, rating_score: 0, fairness_score: 0, price_score: 0 },
+      driveStats: r.drive_stats || { avg_minutes: null, max_minutes: null, spread_minutes: null },
+      location: r.location,
+      placeId: r.place_id || "",
+      phone: detail.phone || undefined,
+      website: detail.website || undefined,
+      googleMapsUrl: detail.google_maps_url || undefined,
+      hours: detail.hours || undefined,
+      summary: detail.summary || undefined,
+      googleReviews: detail.reviews || undefined,
+      yelpRating: yelp.yelp_rating ?? null,
+      yelpReviewCount: yelp.yelp_review_count ?? null,
+      yelpPrice: yelp.yelp_price ?? null,
+      yelpUrl: yelp.yelp_url ?? null,
+      estimatedPerPerson: yelp.estimated_per_person ?? null,
+      popularDishes: yelp.popular_dishes || undefined,
+      driveTimes: perRestDrives.length > 0 ? perRestDrives : undefined,
+    };
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -396,23 +478,20 @@ export default function Home() {
   const restaurantMarkers = currentMarkers.length > 0 ? currentMarkers : savedMarkers;
   const driveTimes = Object.keys(currentDriveTimes).length > 0 ? currentDriveTimes : savedDriveTimes;
 
-  // When agent run finishes: promote the last thinking message to assistant style
-  // (this is the Top 3 final answer) and save map markers
+  // When agent run finishes: promote the last thinking message to assistant style,
+  // extract recommendation cards, and save map markers
   useEffect(() => {
     if (!isRunning) {
-      // Promote the last thinking message → it's the final answer (Top 3 recommendations)
-      // Also merge with the next assistant message if the text was cut off mid-sentence
-      // (GPT-4o sometimes generates text + tool call in one response, splitting a sentence across iterations)
+      const recs = extractRecommendations(agentSteps);
+
       setMessages((prev) => {
         const idx = findLastIndex(prev, (m) => m.role === "status" && m.statusType === "thinking");
         if (idx < 0) return prev;
         const updated = [...prev];
         updated[idx] = { ...updated[idx], role: "assistant", statusType: undefined };
 
-        // Check if text was cut off mid-sentence (doesn't end with punctuation)
         const content = updated[idx].content.trimEnd();
         if (!/[.!?。！？:：)\]】\n]$/.test(content)) {
-          // Find the next assistant message and merge into this one
           for (let j = idx + 1; j < updated.length; j++) {
             if (updated[j].role === "assistant") {
               updated[idx] = { ...updated[idx], content: updated[idx].content + updated[j].content };
@@ -420,6 +499,10 @@ export default function Home() {
               break;
             }
           }
+        }
+
+        if (recs.length > 0) {
+          updated[idx] = { ...updated[idx], recommendations: recs };
         }
 
         return updated;

@@ -1,0 +1,76 @@
+{
+  "friends": [
+    {
+      "name": "Alice",
+      "location": { "lat": 37.7749, "lng": -122.4194, "address": "San Francisco (Downtown)" },
+      "preferences": {
+        "likes": ["Japanese", "Korean", "Italian"],
+        "dislikes": ["Fast Food"],
+        "allergies": []
+      }
+    },
+    {
+      "name": "Bob",
+      "location": { "lat": 37.3382, "lng": -121.8863, "address": "San Jose" },
+      "preferences": {
+        "likes": ["Mexican", "Italian", "Seafood"],
+        "dislikes": [],
+        "allergies": ["Peanuts"]
+      }
+    },
+    {
+      "name": "Charlie",
+      "location": { "lat": 37.4419, "lng": -122.1430, "address": "Palo Alto" },
+      "preferences": {
+        "likes": ["Chinese", "Thai", "Japanese"],
+        "dislikes": ["Indian"],
+        "allergies": []
+      }
+    },
+    {
+      "name": "Diana",
+      "location": { "lat": 37.8044, "lng": -122.2712, "address": "Oakland" },
+      "preferences": {
+        "likes": ["Italian", "French", "Japanese"],
+        "dislikes": [],
+        "allergies": ["Gluten"]
+      }
+    },
+    {
+      "name": "Ethan",
+      "location": { "lat": 37.3861, "lng": -122.0839, "address": "Mountain View" },
+      "preferences": {
+        "likes": ["Korean", "BBQ", "Chinese"],
+        "dislikes": ["Vegan"],
+        "allergies": []
+      }
+    },
+    {
+      "name": "Fiona",
+      "location": { "lat": 37.8716, "lng": -122.2727, "address": "Berkeley" },
+      "preferences": {
+        "likes": ["Sushi", "Mediterranean", "Brunch"],
+        "dislikes": [],
+        "allergies": ["Shellfish"]
+      }
+    },
+    {
+      "name": "Grace",
+      "location": { "lat": 37.3688, "lng": -122.0363, "address": "Sunnyvale" },
+      "preferences": {
+        "likes": ["Mexican", "Korean", "American"],
+        "dislikes": [],
+        "allergies": []
+      }
+    },
+    {
+      "name": "Henry",
+      "location": { "lat": 37.5485, "lng": -121.9886, "address": "Fremont" },
+      "preferences": {
+        "likes": ["Seafood", "Japanese", "Steakhouse"],
+        "dislikes": [],
+        "allergies": ["Dairy"]
+      }
+    }
+  ]
+}

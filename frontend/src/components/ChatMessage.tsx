@@ -353,7 +353,7 @@ function FriendScanChatCard({ names, isResult }: { names: string[]; isResult: bo
 }
 
 // ── Recommendation Cards (Figma design) ──
-import { Star, MapPin, Phone, Globe, Map, ChevronDown, Clock, User, TrendingUp } from "lucide-react";
+import { Star, MapPin, Phone, Globe, Map, ChevronDown, Clock, User, TrendingUp, Megaphone } from "lucide-react";
 
 function renderStars(rating: number, size: "sm" | "xs" = "sm") {
   const fullStars = Math.floor(rating);
@@ -608,6 +608,30 @@ function RecommendationCard({ rec }: { rec: RecommendationData }) {
   );
 }
 
+function AdCard() {
+  return (
+    <div
+      className="relative rounded-xl border border-dashed border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50 overflow-hidden"
+      style={{ animation: "fadeSlideIn 0.4s ease-out 0.36s both" }}
+    >
+      <div className="absolute top-2 right-2">
+        <span className="px-2 py-0.5 bg-amber-400/80 text-amber-900 rounded text-[10px] font-bold uppercase tracking-wide">
+          Sponsored
+        </span>
+      </div>
+      <div className="flex flex-col items-center justify-center py-10 px-6 text-center">
+        <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mb-3">
+          <Megaphone className="w-6 h-6 text-amber-500" />
+        </div>
+        <p className="text-sm font-semibold text-gray-700 mb-1">Your Ad Here</p>
+        <p className="text-xs text-gray-400 max-w-[220px]">
+          Promote your restaurant to groups looking for the perfect dining spot.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function RecommendationCards({ recommendations }: { recommendations: RecommendationData[] }) {
   return (
     <div className="w-full space-y-3 mt-1">
@@ -622,6 +646,7 @@ function RecommendationCards({ recommendations }: { recommendations: Recommendat
       {recommendations.map((rec) => (
         <RecommendationCard key={rec.rank} rec={rec} />
       ))}
+      <AdCard />
     </div>
   );
 }

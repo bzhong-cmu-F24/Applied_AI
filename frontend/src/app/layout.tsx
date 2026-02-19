@@ -13,8 +13,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Group Dining Planner",
+  title: "MeetBite",
   description: "AI-powered restaurant finder for group dining",
+  icons: {
+    icon: "/meetbite-icon.svg",
+    apple: "/meetbite-icon.svg",
+  },
 };
 
 export default function RootLayout({

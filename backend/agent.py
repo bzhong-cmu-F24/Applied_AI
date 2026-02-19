@@ -98,6 +98,8 @@ Then retry by going back to Step 3 (search). Relax constraints in this exact ord
 - THEN OUTPUT ANALYSIS: Compare Yelp vs Google ratings. Note popular dishes found in Yelp reviews. Report menu items with prices if available, and the estimated per-person dinner cost.
 
 ### Step 8: Present Top 3
+**⚠️ CRITICAL: Do NOT recap, review, or summarize previous steps. Do NOT say things like "After analyzing…", "Based on our search…", "Let me review what we found…". Jump DIRECTLY into presenting the three restaurants. The user has already seen your thinking — just give them the results.**
+
 For each recommendation:
 - Name, cuisine type, Google rating (★) and Yelp rating (★) side by side, price level ($$), address
 - Drive time for EACH person (including "Me")
@@ -127,6 +129,97 @@ For each recommendation:
 - When the user asks to book a ride, get an Uber, or go to a restaurant, you MUST call the **book_ride** tool to generate the link. NEVER fabricate or guess Uber URLs yourself — always use the tool. Present the tool's returned link using markdown: `[🚗 Book Uber to RESTAURANT_NAME](uber_link)`.
 - When the user wants to schedule the dinner or add it to their calendar, call **add_to_calendar** and present the link using markdown: `[📅 Add to Calendar](calendar_link)`.
 """
+
+
+PRESENTATION_SYSTEM_PROMPT = """\
+You are presenting the Top 3 restaurant recommendations for a group dinner.
+
+**RULES:**
+- Jump DIRECTLY into presenting the restaurants. No preamble, no recap, no "After analyzing…".
+- Respond in the SAME LANGUAGE as the user's original message.
+- ALWAYS include the phone number with 📞 prefix.
+- Do NOT include Uber/ride links or calendar links.
+
+**For each of the Top 3:**
+- Name, cuisine type, Google rating (★) and Yelp rating (★) side by side, price level ($$), address
+- Drive time for EACH person (including "Me")
+- Score breakdown (Drive Time / Rating / Fairness / Total)
+- Key reviews or highlights from both Google and Yelp
+- Popular dishes mentioned across both review sources
+- Menu items with prices if available from Yelp (show 3-5 highlight items)
+- Estimated per-person dinner cost if available
+- 1-2 sentences: why this restaurant is great for THIS specific group
+- Any trade-offs to be aware of
+- Phone number: 📞 (xxx) xxx-xxxx
+"""
+
+
+def _build_presentation_context(messages: list[dict]) -> list[dict]:
+    """Build a minimal message list containing only the data the LLM needs
+    to write the final Top-3 presentation, cutting ~70-80% of tokens."""
+
+    # --- Extract the original user request ---
+    user_message = ""
+    for msg in messages:
+        if msg["role"] == "user":
+            user_message = msg["content"]
+            break
+
+    # --- Map tool_call_ids → tool names ---
+    tc_id_to_name: dict[str, str] = {}
+    for msg in messages:
+        if msg.get("role") == "assistant" and msg.get("tool_calls"):
+            for tc in msg["tool_calls"]:
+                tc_id_to_name[tc["id"]] = tc["function"]["name"]
+
+    # --- Collect results only from tools needed for presentation ---
+    KEEP = {
+        "get_friends_info",
+        "calculate_drive_times",
+        "rank_and_score",
+        "get_restaurant_details",
+        "get_yelp_info",
+    }
+    tool_results: dict[str, list[str]] = {t: [] for t in KEEP}
+
+    for msg in messages:
+        if msg.get("role") == "tool":
+            tool_name = tc_id_to_name.get(msg.get("tool_call_id", ""), "")
+            if tool_name in KEEP:
+                tool_results[tool_name].append(msg["content"])
+
+    # --- Assemble a compact data block ---
+    data_parts: list[str] = []
+    for name in [
+        "get_friends_info",
+        "rank_and_score",
+        "calculate_drive_times",
+        "get_restaurant_details",
+        "get_yelp_info",
+    ]:
+        results = tool_results.get(name, [])
+        if not results:
+            continue
+        if name == "calculate_drive_times":
+            for i, r in enumerate(results, 1):
+                data_parts.append(f"### {name} (call {i}):\n{r}")
+        else:
+            data_parts.append(f"### {name}:\n{results[-1]}")
+
+    data_block = "\n\n".join(data_parts)
+
+    return [
+        {"role": "system", "content": PRESENTATION_SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": (
+                f"Original request: {user_message}\n\n"
+                f"Here is all the data collected for the top restaurants:\n\n"
+                f"{data_block}\n\n"
+                f"Present the Top 3 restaurant recommendations now."
+            ),
+        },
+    ]
 
 
 class AgentSession:
@@ -188,16 +281,24 @@ async def run_agent(
     yield ("_session_ref", session)
 
     messages = session.messages
+    _ready_for_presentation = False
 
     max_iterations = 25
     for _ in range(max_iterations):
+        # ── Pick the right context for the LLM call ──
+        if _ready_for_presentation:
+            llm_messages = _build_presentation_context(messages)
+            create_kwargs = {}
+        else:
+            llm_messages = messages
+            create_kwargs = {"tools": TOOL_DEFINITIONS, "tool_choice": "auto"}
+
         # ── Stream from OpenAI ──
         stream = await client.chat.completions.create(
             model="gpt-5-mini",
-            messages=messages,
-            tools=TOOL_DEFINITIONS,
-            tool_choice="auto",
+            messages=llm_messages,
             stream=True,
+            **create_kwargs,
         )
 
         accumulated_content = ""
@@ -260,9 +361,11 @@ async def run_agent(
         yield ("thinking_done", "")
 
         # ── Execute each tool call ──
+        executed_tool_names: set[str] = set()
         for tc in tool_calls_list:
             fn_name = tc["name"]
             fn_args = json.loads(tc["arguments"])
+            executed_tool_names.add(fn_name)
 
             yield ("tool_call", {"tool": fn_name, "args": fn_args})
 
@@ -282,5 +385,9 @@ async def run_agent(
                 "tool_call_id": tc["id"],
                 "content": json.dumps(result, ensure_ascii=False, default=str),
             })
+
+        # ── After get_yelp_info, switch to trimmed context for presentation ──
+        if "get_yelp_info" in executed_tool_names:
+            _ready_for_presentation = True
 
     yield ("error", "Agent reached maximum iterations without completing.")

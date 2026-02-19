@@ -244,7 +244,8 @@ async def rank_and_score(
     preferred_cuisines: list[str] = None,
 ) -> list[dict]:
     """Score and rank restaurant candidates using weighted criteria.
-    Weights: Drive time 35%, Rating 30%, Fairness 20%, Price fit 15%.
+    Weights: Drive time 40%, Rating 35%, Fairness 25%.
+    Price is NOT a ranking factor — it's already filtered during validation.
     Returns sorted list with score breakdown."""
     preferred_cuisines = preferred_cuisines or []
 
@@ -306,20 +307,13 @@ async def rank_and_score(
             t = (spread - min_spread) / (max_spread - min_spread)
             fairness_score = 9.0 - t * 7.0  # best spread → 9, worst → 2
 
-        # Price fit score (15%) — closer to budget_level = higher
         price = r.get("price_level")
-        if price is not None:
-            diff = abs(price - budget_level)
-            price_score = max(0, 10 - diff * 3)
-        else:
-            price_score = 6.0
 
-        # Weighted total
+        # Weighted total — price is excluded from ranking
         total = (
-            drive_score * 0.35
-            + rating_score * 0.30
-            + fairness_score * 0.20
-            + price_score * 0.15
+            drive_score * 0.40
+            + rating_score * 0.35
+            + fairness_score * 0.25
         )
 
         scored.append({
@@ -329,7 +323,6 @@ async def rank_and_score(
                 "drive_score": round(drive_score, 2),
                 "rating_score": round(rating_score, 2),
                 "fairness_score": round(fairness_score, 2),
-                "price_score": round(price_score, 2),
             },
             "rating": rating,
             "total_ratings": total_ratings,
@@ -940,8 +933,9 @@ TOOL_DEFINITIONS = [
             "name": "rank_and_score",
             "description": (
                 "Score and rank restaurant candidates using weighted criteria: "
-                "Rating & reviews (35%), Drive-time fairness (25%), Price fit (20%), "
-                "Cuisine & occasion match (20%). Returns a sorted list with score breakdowns. "
+                "Drive time (40%), Rating & reviews (35%), Drive-time fairness (25%). "
+                "Price is NOT a ranking factor — it is already handled by filtering. "
+                "Returns a sorted list with score breakdowns. "
                 "Call this AFTER validate_restaurants to rank the surviving candidates."
             ),
             "parameters": {

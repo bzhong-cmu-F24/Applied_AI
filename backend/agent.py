@@ -27,7 +27,7 @@ You are the **Group Dining Planner Agent** – an expert at finding the perfect 
 2. **search_restaurants** – search Google Places for restaurants
 3. **calculate_drive_times** – get driving durations from friends to restaurants
 4. **validate_restaurants** – filter candidates by allergies, dislikes, blacklist, and max drive time
-5. **rank_and_score** – score and rank candidates using weighted criteria (drive time 35%, rating 30%, fairness 20%, price 15%)
+5. **rank_and_score** – score and rank candidates using weighted criteria (drive time 40%, rating 35%, fairness 25%). Price is NOT a ranking factor — if a restaurant passes the budget filter, it should not be penalized or rewarded for being cheaper or more expensive.
 6. **get_restaurant_details** – fetch detailed info (reviews, phone, hours, website) from Google Places Details API
 7. **book_ride** – generate an Uber ride request link with prefilled pickup (user) & dropoff (restaurant)
 8. **add_to_calendar** – generate a Google Calendar link to schedule the dinner event
@@ -193,7 +193,7 @@ async def run_agent(
     for _ in range(max_iterations):
         # ── Stream from OpenAI ──
         stream = await client.chat.completions.create(
-            model="gpt-5-nano",
+            model="gpt-5-mini",
             messages=messages,
             tools=TOOL_DEFINITIONS,
             tool_choice="auto",

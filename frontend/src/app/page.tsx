@@ -21,7 +21,7 @@ interface Prefs {
   occasion: string;
   mode: "safe" | "adventurous";
   maxDrive: number;
-  blacklist: string;
+  additionalNotes: string;
   openNow: boolean;
 }
 
@@ -31,7 +31,7 @@ const DEFAULT_PREFS: Prefs = {
   occasion: "friends",
   mode: "safe",
   maxDrive: 30,
-  blacklist: "",
+  additionalNotes: "",
   openNow: true,
 };
 
@@ -226,7 +226,7 @@ function extractRecommendations(steps: AgentStep[]): RecommendationData[] {
       totalRatings: r.total_ratings || 0,
       priceLevel: r.price_level ?? null,
       totalScore: r.total_score || 0,
-      breakdown: r.breakdown || { drive_score: 0, rating_score: 0, fairness_score: 0, price_score: 0 },
+      breakdown: r.breakdown || { drive_score: 0, rating_score: 0, fairness_score: 0 },
       driveStats: r.drive_stats || { avg_minutes: null, max_minutes: null, spread_minutes: null },
       location: r.location,
       placeId: r.place_id || "",
@@ -343,13 +343,14 @@ export default function Home() {
     } else {
       parts.push(`No cuisine preference — all cuisines are fine.`);
     }
-    parts.push(`Budget: $${prefs.budget} per person.`);
+    if (prefs.budget > 150) parts.push(`Budget: no limit — any price range is fine.`);
+    else parts.push(`Budget: up to $${prefs.budget} per person.`);
     parts.push(`Occasion: ${prefs.occasion}.`);
     parts.push(`Mode: ${prefs.mode === "safe" ? "safe picks (well-reviewed)" : "adventurous (hidden gems)"}.`);
     parts.push(`Max drive: ${prefs.maxDrive} minutes.`);
     if (prefs.openNow) parts.push(`Only show restaurants that are currently open.`);
     else parts.push(`Include restaurants regardless of whether they are currently open.`);
-    if (prefs.blacklist.trim()) parts.push(`Avoid: ${prefs.blacklist}.`);
+    if (prefs.additionalNotes.trim()) parts.push(`Additional preferences: ${prefs.additionalNotes}.`);
     return parts.join(" ");
   }, [selectedFriends, prefs]);
 
@@ -622,12 +623,14 @@ export default function Home() {
 
                     {/* Budget */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-2">Budget: ${prefs.budget}/person</label>
-                      <input type="range" min={10} max={80} step={5} value={prefs.budget}
+                      <label className="block text-xs font-medium text-gray-700 mb-2">
+                        Budget: {prefs.budget > 150 ? "No limit" : `$${prefs.budget}/person`}
+                      </label>
+                      <input type="range" min={20} max={160} step={10} value={prefs.budget}
                         onChange={(e) => setPrefs({ ...prefs, budget: Number(e.target.value) })}
                         className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-500"
                       />
-                      <div className="flex justify-between text-xs text-gray-500 mt-1"><span>$10</span><span>$80</span></div>
+                      <div className="flex justify-between text-xs text-gray-500 mt-1"><span>$20</span><span>No limit</span></div>
                     </div>
 
                     {/* Mode */}
@@ -676,11 +679,11 @@ export default function Home() {
                       </label>
                     </div>
 
-                    {/* Avoid */}
+                    {/* Additional Notes */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-2">Avoid (Optional)</label>
-                      <textarea value={prefs.blacklist} onChange={(e) => setPrefs({ ...prefs, blacklist: e.target.value })}
-                        placeholder="e.g., seafood allergies, loud atmospheres..."
+                      <label className="block text-xs font-medium text-gray-700 mb-2">Additional Preferences</label>
+                      <textarea value={prefs.additionalNotes} onChange={(e) => setPrefs({ ...prefs, additionalNotes: e.target.value })}
+                        placeholder="e.g., outdoor seating preferred, wheelchair accessible, good for large groups..."
                         className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none" rows={2}
                       />
                     </div>

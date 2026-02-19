@@ -19,7 +19,7 @@ export interface RecommendationData {
     drive_score: number;
     rating_score: number;
     fairness_score: number;
-    price_score: number;
+    price_score?: number;
   };
   driveStats: {
     avg_minutes: number | null;
@@ -402,7 +402,6 @@ function RecommendationCard({ rec }: { rec: RecommendationData }) {
     drive: rec.breakdown.drive_score,
     rating: rec.breakdown.rating_score,
     fairness: rec.breakdown.fairness_score,
-    price: rec.breakdown.price_score,
   };
 
   const mapUrl = rec.googleMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rec.name + " " + rec.address)}`;
@@ -499,7 +498,7 @@ function RecommendationCard({ rec }: { rec: RecommendationData }) {
 
         {/* Metrics — compact or expanded */}
         {!showMore ? (
-          <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-gray-200">
+          <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-gray-200">
             {Object.entries(metrics).map(([key, value]) => (
               <div key={key} className="text-center">
                 <div className="text-[10px] text-gray-500 capitalize mb-0.5">{key}</div>

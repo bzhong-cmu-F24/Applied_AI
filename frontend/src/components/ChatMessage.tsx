@@ -352,210 +352,259 @@ function FriendScanChatCard({ names, isResult }: { names: string[]; isResult: bo
   );
 }
 
-// ── Recommendation Cards ──
-const RANK_STYLES = [
-  { badge: "bg-gradient-to-r from-amber-400 to-yellow-500", ring: "ring-amber-200", label: "#1 Top Pick" },
-  { badge: "bg-gradient-to-r from-slate-300 to-slate-400", ring: "ring-slate-200", label: "#2" },
-  { badge: "bg-gradient-to-r from-amber-600 to-orange-500", ring: "ring-orange-200", label: "#3" },
-];
+// ── Recommendation Cards (Figma design) ──
+import { Star, MapPin, Phone, Globe, Map, ChevronDown, Clock, User, TrendingUp } from "lucide-react";
 
-function Stars({ rating, max = 5 }: { rating: number; max?: number }) {
-  const full = Math.floor(rating);
-  const half = rating - full >= 0.25;
-  return (
-    <span className="inline-flex items-center gap-[1px]">
-      {Array.from({ length: max }, (_, i) => (
-        <svg key={i} className={`w-3.5 h-3.5 ${i < full ? "text-amber-400" : i === full && half ? "text-amber-300" : "text-gray-200"}`} fill="currentColor" viewBox="0 0 20 20">
-          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-        </svg>
-      ))}
-    </span>
-  );
+function renderStars(rating: number, size: "sm" | "xs" = "sm") {
+  const fullStars = Math.floor(rating);
+  const hasHalf = rating % 1 >= 0.25;
+  const sz = size === "xs" ? "w-2.5 h-2.5" : "w-3 h-3";
+  return Array.from({ length: 5 }, (_, i) => (
+    <Star
+      key={i}
+      className={`${sz} ${
+        i < fullStars
+          ? "fill-yellow-400 text-yellow-400"
+          : i === fullStars && hasHalf
+          ? "fill-yellow-400 text-yellow-400 opacity-50"
+          : "text-gray-300"
+      }`}
+    />
+  ));
 }
 
-function ScoreBar({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-[10px] text-gray-500 w-14 shrink-0 text-right">{label}</span>
-      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${(value / 10) * 100}%` }} />
-      </div>
-      <span className="text-[10px] text-gray-600 font-medium w-6 tabular-nums">{value.toFixed(1)}</span>
-    </div>
-  );
+function getScoreColor(score: number) {
+  if (score >= 8) return "from-teal-500 to-emerald-500";
+  if (score >= 6) return "from-blue-500 to-teal-500";
+  return "from-gray-500 to-gray-600";
 }
 
-function PriceLevel({ level }: { level: number | null }) {
-  if (level === null || level === undefined) return <span className="text-xs text-gray-400">Price N/A</span>;
-  return (
-    <span className="text-xs font-medium">
-      {Array.from({ length: 4 }, (_, i) => (
-        <span key={i} className={i < level ? "text-emerald-600" : "text-gray-200"}>$</span>
-      ))}
-    </span>
-  );
+function priceLevelStr(level: number | null): string {
+  if (level == null) return "N/A";
+  return "$".repeat(Math.max(1, level));
+}
+
+function parseMinutes(duration: string): number | null {
+  const m = duration.match(/(\d+)\s*min/);
+  return m ? parseInt(m[1], 10) : null;
 }
 
 function RecommendationCard({ rec }: { rec: RecommendationData }) {
-  const [expanded, setExpanded] = useState(false);
-  const style = RANK_STYLES[rec.rank - 1] || RANK_STYLES[2];
+  const [showMore, setShowMore] = useState(false);
+
+  const avgCommute = rec.driveTimes && rec.driveTimes.length > 0
+    ? Math.round(
+        rec.driveTimes.reduce((sum, dt) => sum + (parseMinutes(dt.duration) ?? 0), 0) / rec.driveTimes.length
+      )
+    : rec.driveStats.avg_minutes != null ? Math.round(rec.driveStats.avg_minutes) : null;
+
+  const metrics = {
+    drive: rec.breakdown.drive_score,
+    rating: rec.breakdown.rating_score,
+    fairness: rec.breakdown.fairness_score,
+    price: rec.breakdown.price_score,
+  };
+
+  const mapUrl = rec.googleMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rec.name + " " + rec.address)}`;
 
   return (
     <div
-      className={`rec-card bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden ${rec.rank === 1 ? `ring-2 ${style.ring}` : ""}`}
+      className="rec-card bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-md border border-gray-200 overflow-hidden"
       style={{ animation: `fadeSlideIn 0.4s ease-out ${(rec.rank - 1) * 0.12}s both` }}
     >
-      {/* Header */}
-      <div className="px-4 pt-4 pb-3">
-        <div className="flex items-start gap-3">
-          <div className={`${style.badge} text-white text-[11px] font-bold rounded-lg px-2 py-1 shrink-0 shadow-sm`}>
-            {style.label}
+      {/* Gradient header */}
+      <div className="relative bg-gradient-to-r from-teal-500 to-blue-600 px-3 py-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="px-2 py-0.5 bg-yellow-400 rounded-md text-xs font-bold text-gray-900 shrink-0">
+              #{rec.rank}
+            </div>
+            <span className="text-white font-semibold text-sm truncate">{rec.name}</span>
           </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-bold text-gray-900 leading-snug">{rec.name}</h3>
-            <p className="text-[11px] text-gray-500 mt-0.5 truncate">{rec.address}</p>
-          </div>
-          <div className="text-right shrink-0">
-            <div className="text-lg font-bold text-teal-600">{rec.totalScore.toFixed(1)}<span className="text-xs text-gray-400 font-normal">/10</span></div>
+          <div className={`px-2.5 py-1 rounded-lg bg-gradient-to-r ${getScoreColor(rec.totalScore)} text-white font-bold text-sm shadow-sm shrink-0 ml-2`}>
+            {rec.totalScore.toFixed(1)}
           </div>
         </div>
+      </div>
 
-        {/* Ratings row */}
-        <div className="flex items-center gap-4 mt-2.5">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-gray-400 font-medium">Google</span>
-            <Stars rating={rec.rating} />
-            <span className="text-xs font-semibold text-gray-700">{rec.rating.toFixed(1)}</span>
+      {/* Body */}
+      <div className="p-3 space-y-2.5">
+        {/* Address */}
+        <div className="flex items-start gap-1.5">
+          <MapPin className="w-3 h-3 text-gray-400 mt-0.5 shrink-0" />
+          <span className="text-xs text-gray-600 leading-tight">{rec.address}</span>
+        </div>
+
+        {/* Ratings */}
+        <div className="flex items-center gap-4 pb-2.5 border-b border-gray-200">
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] font-semibold text-gray-500">Google</span>
+            <div className="flex gap-0.5">{renderStars(rec.rating, "xs")}</div>
+            <span className="text-xs font-bold text-gray-900">{rec.rating.toFixed(1)}</span>
             <span className="text-[10px] text-gray-400">({rec.totalRatings.toLocaleString()})</span>
           </div>
           {rec.yelpRating != null && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-gray-400 font-medium">Yelp</span>
-              <Stars rating={rec.yelpRating} />
-              <span className="text-xs font-semibold text-gray-700">{rec.yelpRating.toFixed(1)}</span>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] font-semibold text-gray-500">Yelp</span>
+              <div className="flex gap-0.5">{renderStars(rec.yelpRating, "xs")}</div>
+              <span className="text-xs font-bold text-gray-900">{rec.yelpRating.toFixed(1)}</span>
               {rec.yelpReviewCount != null && (
                 <span className="text-[10px] text-gray-400">({rec.yelpReviewCount.toLocaleString()})</span>
               )}
             </div>
           )}
-          <PriceLevel level={rec.priceLevel} />
-          {rec.estimatedPerPerson != null && (
-            <span className="text-[10px] text-gray-500">~${rec.estimatedPerPerson}/person</span>
-          )}
         </div>
 
-        {/* Drive time chips */}
-        {rec.driveTimes && rec.driveTimes.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            {rec.driveTimes.map((dt) => (
-              <span key={dt.friend} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-[10px] text-blue-700 font-medium">
-                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-                </svg>
-                {dt.friend}: {dt.duration}
+        {/* Price & Commute stat boxes */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-purple-50 rounded-lg p-2">
+            <div className="text-[10px] font-medium text-purple-600 mb-0.5">Price</div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-sm font-bold text-purple-900">{priceLevelStr(rec.priceLevel)}</span>
+              {rec.estimatedPerPerson != null && (
+                <span className="text-[10px] text-purple-600">~${rec.estimatedPerPerson}/person</span>
+              )}
+            </div>
+          </div>
+          <div className="bg-blue-50 rounded-lg p-2">
+            <div className="text-[10px] font-medium text-blue-600 mb-0.5">Avg Commute</div>
+            <div className="flex items-center gap-1">
+              <Clock className="w-3 h-3 text-blue-600" />
+              <span className="text-sm font-bold text-blue-900">
+                {avgCommute != null ? `${avgCommute} min` : "N/A"}
               </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Commute breakdown per person */}
+        {rec.driveTimes && rec.driveTimes.length > 0 && (
+          <div className="space-y-1">
+            {rec.driveTimes.map((dt, i) => (
+              <div key={dt.friend} className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-4 h-4 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 flex items-center justify-center">
+                    <User className="w-2.5 h-2.5 text-white" />
+                  </div>
+                  <span className="font-medium text-gray-700">{dt.friend}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-gray-400" />
+                  <span className="font-semibold text-gray-900">{dt.duration}</span>
+                </div>
+              </div>
             ))}
           </div>
         )}
 
-        {/* Score breakdown */}
-        <div className="mt-3 space-y-1">
-          <ScoreBar label="Drive" value={rec.breakdown.drive_score} color="bg-blue-400" />
-          <ScoreBar label="Rating" value={rec.breakdown.rating_score} color="bg-amber-400" />
-          <ScoreBar label="Fairness" value={rec.breakdown.fairness_score} color="bg-emerald-400" />
-          <ScoreBar label="Price" value={rec.breakdown.price_score} color="bg-purple-400" />
-        </div>
+        {/* Metrics — compact or expanded */}
+        {!showMore ? (
+          <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-gray-200">
+            {Object.entries(metrics).map(([key, value]) => (
+              <div key={key} className="text-center">
+                <div className="text-[10px] text-gray-500 capitalize mb-0.5">{key}</div>
+                <div className="text-sm font-bold text-gray-900">{value.toFixed(1)}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-1.5 pt-2 border-t border-gray-200">
+            {Object.entries(metrics).map(([key, value]) => (
+              <div key={key} className="flex items-center gap-2">
+                <span className="text-[10px] font-medium text-gray-600 w-12 capitalize">{key}</span>
+                <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-teal-500 to-blue-600 rounded-full transition-all duration-500"
+                    style={{ width: `${(value / 10) * 100}%` }}
+                  />
+                </div>
+                <span className="text-xs font-bold text-gray-900 w-6 text-right">{value.toFixed(1)}</span>
+              </div>
+            ))}
 
-        {/* Popular dishes */}
-        {rec.popularDishes && rec.popularDishes.length > 0 && (
-          <div className="mt-3">
-            <span className="text-[10px] text-gray-500 font-medium">Popular dishes</span>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {rec.popularDishes.map((dish) => (
-                <span key={dish} className="px-2 py-0.5 bg-orange-50 text-orange-700 text-[10px] rounded-full font-medium">{dish}</span>
-              ))}
-            </div>
+            {/* Popular dishes in expanded view */}
+            {rec.popularDishes && rec.popularDishes.length > 0 && (
+              <div className="pt-1.5">
+                <span className="text-[10px] text-gray-500 font-medium">Popular dishes</span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {rec.popularDishes.map((dish) => (
+                    <span key={dish} className="px-2 py-0.5 bg-orange-50 text-orange-700 text-[10px] rounded-full font-medium">{dish}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Summary */}
+            {rec.summary && (
+              <p className="text-[11px] text-gray-600 pt-1 leading-relaxed italic">&ldquo;{rec.summary}&rdquo;</p>
+            )}
+
+            {/* Hours */}
+            {rec.hours && rec.hours.length > 0 && (
+              <div className="pt-1.5">
+                <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Hours</span>
+                <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5">
+                  {rec.hours.map((h) => (
+                    <span key={h} className="text-[10px] text-gray-600">{h}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Google reviews */}
+            {rec.googleReviews && rec.googleReviews.length > 0 && (
+              <div className="pt-1.5">
+                <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Top Reviews</span>
+                <div className="mt-1 space-y-1.5">
+                  {rec.googleReviews.map((r, i) => (
+                    <div key={i} className="bg-white rounded-lg px-2.5 py-2 border border-gray-100">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <div className="flex gap-0.5">{renderStars(r.rating, "xs")}</div>
+                        <span className="text-[10px] text-gray-500">{r.author}</span>
+                      </div>
+                      <p className="text-[11px] text-gray-600 leading-relaxed">{r.text}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {rec.yelpUrl && (
+              <a href={rec.yelpUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] text-red-600 hover:underline font-medium pt-1">
+                View on Yelp
+              </a>
+            )}
           </div>
         )}
 
-        {/* Summary */}
-        {rec.summary && (
-          <p className="text-[11px] text-gray-600 mt-2.5 leading-relaxed italic">&ldquo;{rec.summary}&rdquo;</p>
-        )}
-      </div>
-
-      {/* Action bar + expandable details */}
-      <div className="border-t border-gray-100 px-4 py-2 flex items-center gap-2 flex-wrap">
-        {rec.phone && (
-          <a href={`tel:${rec.phone}`} className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-lg text-[11px] font-medium transition-colors border border-teal-200">
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg>
-            {rec.phone}
-          </a>
-        )}
-        {rec.website && (
-          <a href={rec.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-lg text-[11px] font-medium transition-colors border border-gray-200">
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" /></svg>
-            Website
-          </a>
-        )}
-        <a
-          href={rec.googleMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rec.name + " " + rec.address)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-lg text-[11px] font-medium transition-colors border border-gray-200"
-        >
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" /></svg>
-          Map
-        </a>
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="ml-auto inline-flex items-center gap-1 px-2 py-1 text-[11px] text-gray-500 hover:text-gray-700 transition-colors"
-        >
-          {expanded ? "Less" : "More"}
-          <svg className={`w-3 h-3 transition-transform ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-      </div>
-
-      {/* Expanded details */}
-      {expanded && (
-        <div className="border-t border-gray-100 px-4 py-3 bg-gray-50/50 space-y-3">
-          {rec.hours && rec.hours.length > 0 && (
-            <div>
-              <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Hours</span>
-              <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5">
-                {rec.hours.map((h) => (
-                  <span key={h} className="text-[10px] text-gray-600">{h}</span>
-                ))}
-              </div>
-            </div>
-          )}
-          {rec.googleReviews && rec.googleReviews.length > 0 && (
-            <div>
-              <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Top Google Reviews</span>
-              <div className="mt-1 space-y-1.5">
-                {rec.googleReviews.map((r, i) => (
-                  <div key={i} className="bg-white rounded-lg px-2.5 py-2 border border-gray-100">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <Stars rating={r.rating} />
-                      <span className="text-[10px] text-gray-500">{r.author}</span>
-                    </div>
-                    <p className="text-[11px] text-gray-600 leading-relaxed">{r.text}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {rec.yelpUrl && (
-            <a href={rec.yelpUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] text-red-600 hover:underline font-medium">
-              View on Yelp
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+        {/* Action buttons */}
+        <div className="flex items-center gap-1.5 pt-2">
+          {rec.phone && (
+            <a href={`tel:${rec.phone}`} className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-gray-700 text-[10px] font-medium flex-1">
+              <Phone className="w-3 h-3" />
+              <span>Call</span>
             </a>
           )}
+          {rec.website && (
+            <a href={rec.website} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-gray-700 text-[10px] font-medium flex-1">
+              <Globe className="w-3 h-3" />
+              <span>Site</span>
+            </a>
+          )}
+          <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors text-gray-700 text-[10px] font-medium flex-1">
+            <Map className="w-3 h-3" />
+            <span>Map</span>
+          </a>
+          <button
+            onClick={() => setShowMore(!showMore)}
+            className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-600 hover:to-blue-700 transition-all text-white text-[10px] font-medium shadow-sm"
+          >
+            <TrendingUp className="w-3 h-3" />
+            <span>{showMore ? "Less" : "More"}</span>
+            <ChevronDown className={`w-3 h-3 transition-transform ${showMore ? "rotate-180" : ""}`} />
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }

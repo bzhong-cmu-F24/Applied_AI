@@ -193,7 +193,7 @@ async def run_agent(
     for _ in range(max_iterations):
         # ── Stream from OpenAI ──
         stream = await client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5-nano",
             messages=messages,
             tools=TOOL_DEFINITIONS,
             tool_choice="auto",

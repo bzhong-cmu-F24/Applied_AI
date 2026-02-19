@@ -30,7 +30,7 @@ const DEFAULT_PREFS: Prefs = {
   budget: 40,
   occasion: "friends",
   mode: "safe",
-  maxDrive: 30,
+  maxDrive: 60,
   additionalNotes: "",
   openNow: true,
 };
@@ -669,11 +669,11 @@ export default function Home() {
                     {/* Max Commute */}
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-2">Max Commute: {prefs.maxDrive} min</label>
-                      <input type="range" min={10} max={60} step={5} value={prefs.maxDrive}
+                      <input type="range" min={10} max={120} step={5} value={prefs.maxDrive}
                         onChange={(e) => setPrefs({ ...prefs, maxDrive: Number(e.target.value) })}
                         className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-500"
                       />
-                      <div className="flex justify-between text-xs text-gray-500 mt-1"><span>10 min</span><span>60 min</span></div>
+                      <div className="flex justify-between text-xs text-gray-500 mt-1"><span>10 min</span><span>120 min</span></div>
                     </div>
 
                     {/* Open Now */}

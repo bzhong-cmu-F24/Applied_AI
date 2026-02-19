@@ -767,22 +767,38 @@ export default function Home() {
                 {messages.map((msg) => (
                   <ChatMessage key={msg.id} msg={msg} />
                 ))}
-                {isRunning && messages[messages.length - 1]?.role !== "status" && (
-                  <div className="flex gap-3">
-                    <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-blue-600 rounded-lg flex items-center justify-center shrink-0">
-                      <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0" />
-                      </svg>
-                    </div>
-                    <div className="bg-gray-100 rounded-2xl px-4 py-3">
-                      <div className="flex gap-1">
-                        <span className="w-2 h-2 bg-gray-400 rounded-full dot-1" />
-                        <span className="w-2 h-2 bg-gray-400 rounded-full dot-2" />
-                        <span className="w-2 h-2 bg-gray-400 rounded-full dot-3" />
+                {isRunning && (() => {
+                  const lastStatus = [...messages].reverse().find(m => m.role === "status");
+                  const activityLabel = lastStatus?.statusType === "tool_call" && lastStatus.toolName
+                    ? ({
+                        get_friends_info: "Locating friends",
+                        search_restaurants: "Searching restaurants",
+                        calculate_drive_times: "Calculating drive times",
+                        validate_restaurants: "Filtering candidates",
+                        rank_and_score: "Ranking restaurants",
+                        get_restaurant_details: "Fetching details",
+                        get_yelp_info: "Fetching Yelp info",
+                        book_ride: "Booking ride",
+                        add_to_calendar: "Creating event",
+                      }[lastStatus.toolName] || "Working")
+                    : lastStatus?.statusType === "thinking" ? "Thinking" : "Working";
+                  return (
+                    <div className="flex items-center gap-3 animate-fade-in pl-11 py-1">
+                      <div className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-teal-50 to-blue-50 border border-teal-200/60 rounded-full">
+                        <span className="relative flex h-2.5 w-2.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-teal-500" />
+                        </span>
+                        <span className="text-xs font-medium text-teal-700">{activityLabel}</span>
+                        <span className="flex gap-0.5">
+                          <span className="w-1 h-1 bg-teal-400 rounded-full dot-1" />
+                          <span className="w-1 h-1 bg-teal-400 rounded-full dot-2" />
+                          <span className="w-1 h-1 bg-teal-400 rounded-full dot-3" />
+                        </span>
                       </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
                 <div ref={chatEndRef} />
               </div>
 

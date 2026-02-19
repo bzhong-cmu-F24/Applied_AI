@@ -7,9 +7,9 @@ import MapPanel, { UserLocation } from "@/components/MapPanel";
 import { ScanState } from "@/components/FriendLocatorOverlay";
 
 // ─── Utils ───
-function findLastIndex<T>(arr: T[], pred: (item: T) => boolean): number {
+function findLastIndex<T>(arr: T[], pred: (item: T, index: number) => boolean): number {
   for (let i = arr.length - 1; i >= 0; i--) {
-    if (pred(arr[i])) return i;
+    if (pred(arr[i], i)) return i;
   }
   return -1;
 }
@@ -499,24 +499,43 @@ export default function Home() {
       const recs = extractRecommendations(agentSteps);
 
       setMessages((prev) => {
-        const idx = findLastIndex(prev, (m) => m.role === "status" && m.statusType === "thinking");
-        if (idx < 0) return prev;
         const updated = [...prev];
-        updated[idx] = { ...updated[idx], role: "assistant", statusType: undefined };
 
-        const content = updated[idx].content.trimEnd();
-        if (!/[.!?。！？:：)\]】\n]$/.test(content)) {
-          for (let j = idx + 1; j < updated.length; j++) {
-            if (updated[j].role === "assistant") {
-              updated[idx] = { ...updated[idx], content: updated[idx].content + updated[j].content };
-              updated.splice(j, 1);
-              break;
+        // Try to find an unpromoted thinking message and promote it
+        let targetIdx = findLastIndex(updated, (m) => m.role === "status" && m.statusType === "thinking");
+        if (targetIdx >= 0) {
+          updated[targetIdx] = { ...updated[targetIdx], role: "assistant", statusType: undefined };
+
+          const content = updated[targetIdx].content.trimEnd();
+          if (!/[.!?。！？:：)\]】\n]$/.test(content)) {
+            for (let j = targetIdx + 1; j < updated.length; j++) {
+              if (updated[j].role === "assistant") {
+                updated[targetIdx] = { ...updated[targetIdx], content: updated[targetIdx].content + updated[j].content };
+                updated.splice(j, 1);
+                break;
+              }
             }
           }
         }
 
         if (recs.length > 0) {
-          updated[idx] = { ...updated[idx], recommendations: recs };
+          // If we promoted a thinking message, attach recs to it
+          if (targetIdx >= 0) {
+            updated[targetIdx] = { ...updated[targetIdx], recommendations: recs };
+          } else {
+            // final_done already promoted the message — find the last assistant
+            // message from the current run (after the last user message)
+            const lastUserIdx = findLastIndex(updated, (m) => m.role === "user");
+            const lastAssistantIdx = findLastIndex(
+              updated,
+              (m, i) => m.role === "assistant" && i > lastUserIdx
+            );
+            if (lastAssistantIdx >= 0) {
+              updated[lastAssistantIdx] = { ...updated[lastAssistantIdx], recommendations: recs };
+            } else {
+              updated.push(mkMsg("assistant", "", { recommendations: recs }));
+            }
+          }
         }
 
         return updated;

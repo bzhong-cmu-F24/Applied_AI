@@ -68,6 +68,9 @@ function summarizeToolResult(tool: string, result: unknown): string {
   if (tool === "get_restaurant_details" && Array.isArray(result)) {
     return `Fetched details for ${result.length} restaurants`;
   }
+  if (tool === "get_yelp_info" && Array.isArray(result)) {
+    return `Fetched Yelp data for ${result.length} restaurants`;
+  }
   if (tool === "book_ride" && result && typeof result === "object") {
     const r = result as { restaurant?: string };
     return `Ride links ready for ${r.restaurant || "restaurant"}`;
